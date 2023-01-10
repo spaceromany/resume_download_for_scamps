@@ -1,6 +1,7 @@
 import requests
 from tqdm import tqdm
 import os
+import time
 
 # Set the download URL and the save path
 url = "https://hueaml.blob.core.windows.net/scampsdatasetrelease/scamps_videos.tar.gz"
@@ -8,6 +9,7 @@ save_path = "/HDD/SCAMPS/scamps_videos.tar.gz"
 
 # Set the maximum number of retries
 max_retries = 10
+sleep_seconds = 2
 
 # Open the local file in append mode
 with open(save_path, "ab") as f:
@@ -30,11 +32,12 @@ with open(save_path, "ab") as f:
         # Initialize the number of retries
         retries = 0
 
-        # Initialize the tqdm progress bar
-        pbar = tqdm(total=file_size, initial=local_file_size, unit="B", unit_scale=True, desc=save_path)
+        # # Initialize the tqdm progress bar
+        # pbar = tqdm(total=file_size, initial=local_file_size, unit="B", unit_scale=True, desc=save_path)
 
         # Retry the request if the connection fails
         while True:
+           
             # Set the starting and ending bytes for the request
             start_byte = local_file_size
             end_byte = file_size - 1
@@ -45,6 +48,16 @@ with open(save_path, "ab") as f:
             try:
                 # Send the HTTP GET request
                 response = requests.get(url, headers=headers, stream=True)
+
+                print("run")
+                # Use tqdm to show the progress bar
+                with tqdm(total=file_size, initial=local_file_size, unit="B", unit_scale=True, desc=save_path) as pbar:
+                    for data in response.iter_content(chunk_size=4096):
+                        # Write the data to the local file
+                        f.write(data)
+                        # Update the progress bar manually
+                        pbar.update(len(data))                
+
                 break
             except:
                 # Increment the number of retries
@@ -52,17 +65,12 @@ with open(save_path, "ab") as f:
 
                 # If the number of retries is greater than the maximum, raise an exception
                 if retries > max_retries:
+                    print("Failed to download file after maximum number of retries")
                     raise Exception("Failed to download file after maximum number of retries")
 
-                # Update the total size of the file
-                file_size = int(response.headers.get("Content-Length"))
-                pbar.total = file_size
+                local_file_size = os.path.getsize(save_path)
 
-        # Use tqdm to show the progress bar
-        for data in response.iter_content(chunk_size=4096):
-            # Write the data to the local file
-            f.write(data)
+                # Sleep for the specified number of seconds before retrying the connection
+                time.sleep(sleep_seconds)
 
-            # Update the progress bar manually
-            pbar.update(len(data))
-        pbar.close()
+
